@@ -97,8 +97,7 @@
 
         <section class="profile-section">
             <div class="avatar-container">
-                <img id="profile-img" alt="Arda Miraç Seçkin" class="profile-image">
-                <div id="avatar-fallback" style="width: 160px; height: 160px; border-radius: 50%; background: linear-gradient(135deg, #1f6feb, #58a6ff); display: none; align-items: center; justify-content: center; font-size: 3rem; font-weight: bold; color: white; border: 3px solid var(--accent-color);">AS</div>
+                <img src="https://raw.githubusercontent.com/ardamiracseckin/ardamiracseckin.github.io-/main/cv_foto.jpg" alt="Arda Miraç Seçkin" class="profile-image">
             </div>
             <div class="profile-info">
                 <h1>Arda Miraç Seçkin</h1>
@@ -157,36 +156,10 @@
         window.onload = function() {
             triggerWelcomeConfetti();
             fetchGitHubRepositories();
-            initProfileImageLoader();
         };
 
         function triggerWelcomeConfetti() {
             confetti({ particleCount: 150, spread: 85, origin: { y: 0.6 } });
-        }
-
-        // Profil resmi için tüm ihtimalleri deneyen akıllı döngü
-        function initProfileImageLoader() {
-            const img = document.getElementById('profile-img');
-            const fallback = document.getElementById('avatar-fallback');
-            const attempts = [
-                'cv_foto.jpg',
-                'cv foto.jpg',
-                'https://raw.githubusercontent.com/ardamiracseckin/ardamiracseckin.github.io-/main/cv_foto.jpg',
-                'https://raw.githubusercontent.com/ardamiracseckin/ardamiracseckin.github.io-/master/cv_foto.jpg',
-                'https://raw.githubusercontent.com/ardamiracseckin/ardamiracseckin.github.io/main/cv_foto.jpg',
-                'https://raw.githubusercontent.com/ardamiracseckin/ardamiracseckin.github.io/master/cv_foto.jpg'
-            ];
-            let idx = 0;
-            
-            img.onerror = function() {
-                if (idx < attempts.length) {
-                    img.src = attempts[idx++];
-                } else {
-                    img.style.display = 'none';
-                    fallback.style.display = 'flex';
-                }
-            };
-            img.src = attempts[idx++];
         }
 
         async function fetchGitHubRepositories() {
@@ -204,7 +177,7 @@
                         card.innerHTML = `
                             <div>
                                 <h3>${repo.name.replace(/-/g, ' ')}</h3>
-                                <button class="btn-readme" onclick="openReadme('${repo.name}', '${repo.html_url}', '${repo.default_branch}')">
+                                <button class="btn-readme" onclick="openReadme('${repo.name}', '${repo.html_url}')">
                                     <span>📖 Read Project Details</span>
                                     <span>+</span>
                                 </button>
@@ -220,7 +193,7 @@
             } catch (e) { container.innerHTML = '<div class="loading">Failed to load projects.</div>'; }
         }
 
-        async function openReadme(repoName, repoUrl, defaultBranch) {
+        async function openReadme(repoName, repoUrl) {
             const modal = document.getElementById('readme-modal');
             const contentDiv = document.getElementById('readme-content');
             document.getElementById('modal-repo-link').href = repoUrl;
@@ -233,44 +206,9 @@
                 });
                 if (response.ok) {
                     const markdownText = await response.text();
-                    let htmlContent = marked.parse(markdownText);
-                    
-                    // README içindeki resim etiketlerini yakalar ve tüm olası kırılmaları (Türkçe karakter, dal ismi vb.) düzelten fonksiyonu bağlar
-                    htmlContent = htmlContent.replace(/<img\s+([^>]*?)src="([^"]+)"/g, (match, before, srcPath) => {
-                        if (!srcPath.startsWith('http') && !srcPath.startsWith('data:')) {
-                            let path = srcPath.replace(/^\.\//, '');
-                            return `<img ${before} src="https://raw.githubusercontent.com/ardamiracseckin/${repoName}/${defaultBranch}/${encodeURI(path)}" data-repo="${repoName}" data-branch="${defaultBranch}" data-path="${path}" data-attempt="0" onerror="fixReadmeImage(this)"`;
-                        }
-                        return match;
-                    });
-                    contentDiv.innerHTML = htmlContent;
+                    contentDiv.innerHTML = marked.parse(markdownText);
                 } else { contentDiv.innerHTML = '<div style="text-align:center;padding:40px;">No README found.</div>'; }
             } catch (e) { contentDiv.innerHTML = '<div style="text-align:center;padding:40px;">Error loading.</div>'; }
-        }
-
-        // README resimleri kırılırsa arka arkaya düzeltme varyasyonları deneyen fonksiyon
-        function fixReadmeImage(img) {
-            const repo = img.getAttribute('data-repo');
-            const branch = img.getAttribute('data-branch');
-            const path = img.getAttribute('data-path');
-            let attempt = parseInt(img.getAttribute('data-attempt') || '0');
-            
-            const alternates = [
-                `https://raw.githubusercontent.com/ardamiracseckin/${repo}/main/${encodeURI(path)}`,
-                `https://raw.githubusercontent.com/ardamiracseckin/${repo}/master/${encodeURI(path)}`,
-                `https://raw.githubusercontent.com/ardamiracseckin/${repo}/${branch}/${encodeURIComponent(path)}`,
-                `https://raw.githubusercontent.com/ardamiracseckin/${repo}/${branch}/${path.replace(/ı/g, 'i')}`,
-                `https://raw.githubusercontent.com/ardamiracseckin/${repo}/main/${path.replace(/ı/g, 'i')}`,
-                `https://raw.githubusercontent.com/ardamiracseckin/${repo}/master/${path.replace(/ı/g, 'i')}`
-            ];
-
-            if (attempt < alternates.length) {
-                img.setAttribute('data-attempt', (attempt + 1).toString());
-                img.src = alternates[attempt];
-            } else {
-                img.onerror = null;
-                img.alt = "Project asset image";
-            }
         }
 
         function closeModal(event) {
