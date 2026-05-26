@@ -99,8 +99,7 @@
 
         <section class="profile-section">
             <div class="avatar-container">
-                <img src="cv%20foto.jpg" alt="Arda Miraç Seçkin" class="profile-image" id="profile-img" onerror="this.onerror=null; this.src='cv_foto.jpg'; setTimeout(() => { if(this.naturalWidth === 0) { this.style.display='none'; document.getElementById('avatar-fallback').style.display='flex'; } }, 100);">
-                <div id="avatar-fallback" style="width: 160px; height: 160px; border-radius: 50%; background: linear-gradient(135deg, #1f6feb, #58a6ff); display: none; align-items: center; justify-content: center; font-size: 3rem; font-weight: bold; color: white; border: 3px solid var(--accent-color);">AS</div>
+                <img src="./cv_foto.jpg" alt="Arda Miraç Seçkin" class="profile-image">
             </div>
             <div class="profile-info">
                 <h1>Arda Miraç Seçkin</h1>
@@ -184,7 +183,7 @@
                         card.innerHTML = `
                             <div>
                                 <h3>${repo.name.replace(/-/g, ' ')}</h3>
-                                <button class="btn-readme" onclick="openReadme('${repo.name}', '${repo.html_url}')">
+                                <button class="btn-readme" onclick="openReadme('${repo.name}', '${repo.html_url}', '${repo.default_branch}')">
                                     <span>📖 Read Project Details</span>
                                     <span>+</span>
                                 </button>
@@ -205,7 +204,8 @@
             }
         }
 
-        async function openReadme(repoName, repoUrl) {
+        // defaultBranch parametresi eklendi
+        async function openReadme(repoName, repoUrl, defaultBranch) {
             const modal = document.getElementById('readme-modal');
             const contentDiv = document.getElementById('readme-content');
             const repoLink = document.getElementById('modal-repo-link');
@@ -221,15 +221,15 @@
                 
                 if (response.ok) {
                     const markdownText = await response.text();
-                    // Önce markdown'ı HTML'e çeviriyoruz
                     let htmlContent = marked.parse(markdownText);
                     
-                    // KESİN ÇÖZÜM: Html içindeki tüm resim (img src) yollarını bulup GitHub raw adresine sabitliyoruz.
-                    // encodeURI fonksiyonu "ı, ş, ç" gibi harfleri tarayıcının anlayacağı formata çevirir.
+                    // KESİN ÇÖZÜM: Resimleri ararken statik "main" kelimesi yerine deponun asıl dalını (defaultBranch) kullanıyoruz.
                     htmlContent = htmlContent.replace(/src="([^"]+)"/g, (match, srcPath) => {
                         if (!srcPath.startsWith('http') && !srcPath.startsWith('data:')) {
-                            const cleanPath = encodeURI(srcPath);
-                            return `src="https://raw.githubusercontent.com/ardamiracseckin/${repoName}/main/${cleanPath}"`;
+                            // Slashes (./) temizliği
+                            let cleanPath = srcPath.replace(/^\.\//, '');
+                            cleanPath = encodeURI(cleanPath);
+                            return `src="https://raw.githubusercontent.com/ardamiracseckin/${repoName}/${defaultBranch}/${cleanPath}"`;
                         }
                         return match;
                     });
