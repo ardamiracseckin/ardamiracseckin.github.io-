@@ -76,8 +76,6 @@
         .markdown-body pre { background: var(--bg-card); padding: 15px; border-radius: 6px; overflow-x: auto; border: 1px solid var(--border-color); }
         .markdown-body pre code { background: none; padding: 0; color: var(--text-main); }
         .markdown-body a { color: var(--accent-color); text-decoration: none; }
-        .markdown-body ul, .markdown-body ol { padding-left: 20px; }
-        .markdown-body li { margin-bottom: 5px; }
 
         @media (max-width: 768px) {
             .profile-section { flex-direction: column; text-align: center; gap: 25px; }
@@ -99,7 +97,7 @@
 
         <section class="profile-section">
             <div class="avatar-container">
-                <img src="cv_foto.jpg" alt="Arda Miraç Seçkin" class="profile-image" onerror="this.style.display='none'; document.getElementById('avatar-fallback').style.display='flex';">
+                <img id="profile-img" alt="Arda Miraç Seçkin" class="profile-image">
                 <div id="avatar-fallback" style="width: 160px; height: 160px; border-radius: 50%; background: linear-gradient(135deg, #1f6feb, #58a6ff); display: none; align-items: center; justify-content: center; font-size: 3rem; font-weight: bold; color: white; border: 3px solid var(--accent-color);">AS</div>
             </div>
             <div class="profile-info">
@@ -159,28 +157,50 @@
         window.onload = function() {
             triggerWelcomeConfetti();
             fetchGitHubRepositories();
+            initProfileImageLoader();
         };
 
         function triggerWelcomeConfetti() {
             confetti({ particleCount: 150, spread: 85, origin: { y: 0.6 } });
         }
 
+        // Profil resmi için tüm ihtimalleri deneyen akıllı döngü
+        function initProfileImageLoader() {
+            const img = document.getElementById('profile-img');
+            const fallback = document.getElementById('avatar-fallback');
+            const attempts = [
+                'cv_foto.jpg',
+                'cv foto.jpg',
+                'https://raw.githubusercontent.com/ardamiracseckin/ardamiracseckin.github.io-/main/cv_foto.jpg',
+                'https://raw.githubusercontent.com/ardamiracseckin/ardamiracseckin.github.io-/master/cv_foto.jpg',
+                'https://raw.githubusercontent.com/ardamiracseckin/ardamiracseckin.github.io/main/cv_foto.jpg',
+                'https://raw.githubusercontent.com/ardamiracseckin/ardamiracseckin.github.io/master/cv_foto.jpg'
+            ];
+            let idx = 0;
+            
+            img.onerror = function() {
+                if (idx < attempts.length) {
+                    img.src = attempts[idx++];
+                } else {
+                    img.style.display = 'none';
+                    fallback.style.display = 'flex';
+                }
+            };
+            img.src = attempts[idx++];
+        }
+
         async function fetchGitHubRepositories() {
             const username = 'ardamiracseckin';
             const container = document.getElementById('repos-container');
-            
             try {
                 const response = await fetch(`https://api.github.com/users/${username}/repos?sort=updated&per_page=100`);
                 const repos = await response.json();
-                
                 container.innerHTML = ''; 
-                
                 repos.forEach(repo => {
                     if (repo.name.toLowerCase() !== username.toLowerCase() && !repo.fork) {
                         const card = document.createElement('div');
                         card.className = 'project-card';
                         const language = repo.language ? `🔹 ${repo.language}` : '';
-                        
                         card.innerHTML = `
                             <div>
                                 <h3>${repo.name.replace(/-/g, ' ')}</h3>
@@ -197,49 +217,59 @@
                         container.appendChild(card);
                     }
                 });
-                
-                if(container.children.length === 0) container.innerHTML = '<div class="loading">No public repositories found.</div>';
-
-            } catch (error) {
-                container.innerHTML = '<div class="loading">Failed to load projects.</div>';
-            }
+            } catch (e) { container.innerHTML = '<div class="loading">Failed to load projects.</div>'; }
         }
 
         async function openReadme(repoName, repoUrl, defaultBranch) {
             const modal = document.getElementById('readme-modal');
             const contentDiv = document.getElementById('readme-content');
-            const repoLink = document.getElementById('modal-repo-link');
-            
+            document.getElementById('modal-repo-link').href = repoUrl;
             modal.style.display = 'flex';
-            contentDiv.innerHTML = '<div style="text-align:center; padding: 40px; color: #8b949e;">Fetching project details from GitHub...</div>';
-            repoLink.href = repoUrl;
+            contentDiv.innerHTML = '<div style="text-align:center; padding:40px; color:#8b949e;">Loading...</div>';
 
             try {
                 const response = await fetch(`https://api.github.com/repos/ardamiracseckin/${repoName}/readme`, {
                     headers: { 'Accept': 'application/vnd.github.v3.raw' }
                 });
-                
                 if (response.ok) {
                     const markdownText = await response.text();
                     let htmlContent = marked.parse(markdownText);
                     
-                    // Markdown içindeki bağıl resim yollarını bulup doğrudan GitHub ham sunucu linkine dönüştürür.
-                    htmlContent = htmlContent.replace(/src="([^"]+)"/g, (match, srcPath) => {
+                    // README içindeki resim etiketlerini yakalar ve tüm olası kırılmaları (Türkçe karakter, dal ismi vb.) düzelten fonksiyonu bağlar
+                    htmlContent = htmlContent.replace(/<img\s+([^>]*?)src="([^"]+)"/g, (match, before, srcPath) => {
                         if (!srcPath.startsWith('http') && !srcPath.startsWith('data:')) {
-                            let cleanPath = srcPath.replace(/^\.\//, '');
-                            // URL yapısındaki boşlukları ve Türkçe karakterleri tarayıcı dostu (% kodlu) formata çevirir
-                            cleanPath = encodeURI(cleanPath);
-                            return `src="https://raw.githubusercontent.com/ardamiracseckin/${repoName}/${defaultBranch}/${cleanPath}"`;
+                            let path = srcPath.replace(/^\.\//, '');
+                            return `<img ${before} src="https://raw.githubusercontent.com/ardamiracseckin/${repoName}/${defaultBranch}/${encodeURI(path)}" data-repo="${repoName}" data-branch="${defaultBranch}" data-path="${path}" data-attempt="0" onerror="fixReadmeImage(this)"`;
                         }
                         return match;
                     });
-
                     contentDiv.innerHTML = htmlContent;
-                } else {
-                    contentDiv.innerHTML = '<div style="text-align:center; padding: 40px; color: #8b949e;">No README.md documentation found for this project yet.</div>';
-                }
-            } catch (error) {
-                contentDiv.innerHTML = '<div style="text-align:center; padding: 40px; color: #ff7b72;">An error occurred while loading the documentation.</div>';
+                } else { contentDiv.innerHTML = '<div style="text-align:center;padding:40px;">No README found.</div>'; }
+            } catch (e) { contentDiv.innerHTML = '<div style="text-align:center;padding:40px;">Error loading.</div>'; }
+        }
+
+        // README resimleri kırılırsa arka arkaya düzeltme varyasyonları deneyen fonksiyon
+        function fixReadmeImage(img) {
+            const repo = img.getAttribute('data-repo');
+            const branch = img.getAttribute('data-branch');
+            const path = img.getAttribute('data-path');
+            let attempt = parseInt(img.getAttribute('data-attempt') || '0');
+            
+            const alternates = [
+                `https://raw.githubusercontent.com/ardamiracseckin/${repo}/main/${encodeURI(path)}`,
+                `https://raw.githubusercontent.com/ardamiracseckin/${repo}/master/${encodeURI(path)}`,
+                `https://raw.githubusercontent.com/ardamiracseckin/${repo}/${branch}/${encodeURIComponent(path)}`,
+                `https://raw.githubusercontent.com/ardamiracseckin/${repo}/${branch}/${path.replace(/ı/g, 'i')}`,
+                `https://raw.githubusercontent.com/ardamiracseckin/${repo}/main/${path.replace(/ı/g, 'i')}`,
+                `https://raw.githubusercontent.com/ardamiracseckin/${repo}/master/${path.replace(/ı/g, 'i')}`
+            ];
+
+            if (attempt < alternates.length) {
+                img.setAttribute('data-attempt', (attempt + 1).toString());
+                img.src = alternates[attempt];
+            } else {
+                img.onerror = null;
+                img.alt = "Project asset image";
             }
         }
 
